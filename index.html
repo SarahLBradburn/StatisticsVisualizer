@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistical Accuracy Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>The Accuracy Paradox</h1>
+            <p class="subtitle">How high accuracy can be misleading when testing for rare conditions</p>
+        </header>
+
+        <main>
+            <section class="controls-section">
+                <h2>Population Parameters</h2>
+                <div class="control-group">
+                    <label for="prevalenceSlider">
+                        Prevalence (Disease Rate in Population)
+                        <span class="value-display" id="prevalenceValue">10%</span>
+                    </label>
+                    <input
+                        type="range"
+                        id="prevalenceSlider"
+                        min="1"
+                        max="100"
+                        value="10"
+                        class="slider"
+                    >
+                </div>
+
+                <div class="control-group">
+                    <label for="accuracySlider">
+                        Model Accuracy
+                        <span class="value-display" id="accuracyValue">95%</span>
+                    </label>
+                    <input
+                        type="range"
+                        id="accuracySlider"
+                        min="0"
+                        max="100"
+                        value="95"
+                        class="slider"
+                    >
+                </div>
+
+                <div class="control-group">
+                    <label for="biasSlider">
+                        False Positive Bias (0=balanced, 100=favor false positives)
+                        <span class="value-display" id="biasValue">50%</span>
+                    </label>
+                    <input
+                        type="range"
+                        id="biasSlider"
+                        min="0"
+                        max="100"
+                        value="50"
+                        class="slider"
+                    >
+                </div>
+
+                <button id="regenerateButton" class="regenerate-btn">Generate New Sample</button>
+            </section>
+
+            <section class="visualization-section">
+                <h2>Population Visualization</h2>
+                <p class="viz-description">Each dot represents a person. Colors show true condition (outer ring) vs predicted condition (center).</p>
+                <div id="populationCanvas" class="canvas-container">
+                    <canvas id="populationViz"></canvas>
+                </div>
+            </section>
+
+            <section class="stats-section">
+                <h2>Prediction Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-box true-positive">
+                        <h3>True Positives</h3>
+                        <div class="stat-value" id="tpValue">0</div>
+                        <div class="stat-label">Correctly identified as positive</div>
+                    </div>
+                    <div class="stat-box false-positive">
+                        <h3>False Positives</h3>
+                        <div class="stat-value" id="fpValue">0</div>
+                        <div class="stat-label">Incorrectly flagged as positive</div>
+                    </div>
+                    <div class="stat-box true-negative">
+                        <h3>True Negatives</h3>
+                        <div class="stat-value" id="tnValue">0</div>
+                        <div class="stat-label">Correctly identified as negative</div>
+                    </div>
+                    <div class="stat-box false-negative">
+                        <h3>False Negatives</h3>
+                        <div class="stat-value" id="fnValue">0</div>
+                        <div class="stat-label">Missed as negative</div>
+                    </div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <h3>Sensitivity (Recall)</h3>
+                        <div class="metric-value" id="sensitivityValue">0%</div>
+                        <div class="metric-desc">TP / (TP + FN)</div>
+                    </div>
+                    <div class="metric-box">
+                        <h3>Specificity</h3>
+                        <div class="metric-value" id="specificityValue">0%</div>
+                        <div class="metric-desc">TN / (TN + FP)</div>
+                    </div>
+                    <div class="metric-box">
+                        <h3>Precision</h3>
+                        <div class="metric-value" id="precisionValue">0%</div>
+                        <div class="metric-desc">TP / (TP + FP)</div>
+                    </div>
+                    <div class="metric-box">
+                        <h3>Accuracy</h3>
+                        <div class="metric-value" id="overallAccuracyValue">0%</div>
+                        <div class="metric-desc">(TP + TN) / Total</div>
+                    </div>
+                </div>
+
+                <div class="confusion-matrix">
+                    <h3>Confusion Matrix</h3>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th>Predicted Positive</th>
+                            <th>Predicted Negative</th>
+                        </tr>
+                        <tr>
+                            <th>Actually Positive</th>
+                            <td id="matrixTP">0</td>
+                            <td id="matrixFN">0</td>
+                        </tr>
+                        <tr>
+                            <th>Actually Negative</th>
+                            <td id="matrixFP">0</td>
+                            <td id="matrixTN">0</td>
+                        </tr>
+                    </table>
+                </div>
+            </section>
+
+            <section class="insight-section">
+                <h2>💡 Key Insight</h2>
+                <p id="insightText">
+                    Adjust the sliders to see how a high-accuracy model can produce mostly false positives
+                    when the condition is rare. This is why medical tests need to be interpreted carefully!
+                </p>
+            </section>
+        </main>
+
+        <footer>
+            <p>A visualization tool for understanding predictive accuracy in imbalanced datasets</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
