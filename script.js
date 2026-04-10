@@ -316,6 +316,324 @@ tabButtons.forEach(button => {
                 resizeCanvas();
                 updateVisualization();
             }, 0);
+        } else if (tabName === 'page2') {
+            // Resize distribution canvas when switching to page 2
+            setTimeout(() => {
+                if (distributionData.length > 0) {
+                    updateDistributionVisualization();
+                }
+            }, 0);
         }
     });
 });
+
+// ============================================
+// PAGE 2: Mean vs Median Visualizer
+// ============================================
+
+// DOM Elements for Page 2
+const meanSlider = document.getElementById('meanSlider');
+const medianSlider = document.getElementById('medianSlider');
+const datasetSizeSlider = document.getElementById('datasetSizeSlider');
+
+const meanValue = document.getElementById('meanValue');
+const medianValue = document.getElementById('medianValue');
+const datasetSizeValue = document.getElementById('datasetSizeValue');
+
+const generateDistributionBtn = document.getElementById('generateDistributionBtn');
+const distributionCanvas = document.getElementById('distributionViz');
+const distCtx = distributionCanvas.getContext('2d');
+
+const computedMean = document.getElementById('computedMean');
+const computedMedian = document.getElementById('computedMedian');
+const computedStdDev = document.getElementById('computedStdDev');
+const computedSkewness = document.getElementById('computedSkewness');
+const insightTextPage2 = document.getElementById('insightTextPage2');
+
+let distributionData = [];
+
+// Generate a dataset with specified mean and median
+function generateDistribution() {
+    const targetMean = parseInt(meanSlider.value);
+    const targetMedian = parseInt(medianSlider.value);
+    const size = parseInt(datasetSizeSlider.value);
+    const skewness = Math.abs(targetMean - targetMedian) / 100; // Scale based on mean-median difference
+
+    distributionData = [];
+
+    // Generate base data using a skewed distribution
+    // We'll use a combination of normal and log-normal to create skewness
+    for (let i = 0; i < size; i++) {
+        let value;
+        
+        // Generate from a base distribution
+        if (i < size * 0.7) {
+            // 70% from normal distribution around median
+            value = targetMedian + (gaussianRandom() * 15);
+        } else {
+            // 30% from a tail (scattered outliers)
+            const direction = targetMean > targetMedian ? 1 : -1;
+            value = targetMedian + (Math.random() * 80 * direction);
+        }
+
+        distributionData.push(Math.max(1, value));
+    }
+
+    // Sort the data
+    distributionData.sort((a, b) => a - b);
+
+    // Scale and shift to approximate the target mean
+    const currentMean = calculateMean(distributionData);
+    const scaleFactor = currentMean !== 0 ? targetMean / currentMean : 1;
+    
+    distributionData = distributionData.map(v => v * scaleFactor);
+
+    // Fine-tune median by adjusting middle values
+    const sortedData = [...distributionData].sort((a, b) => a - b);
+    const medianIndex = Math.floor(sortedData.length / 2);
+    const currentMedian = sortedData[medianIndex];
+    const medianShift = targetMedian - currentMedian;
+    
+    // Apply shift more heavily to the upper half if mean > median
+    if (targetMean > targetMedian) {
+        for (let i = medianIndex; i < distributionData.length; i++) {
+            distributionData[i] += medianShift * 0.5;
+        }
+    } else {
+        for (let i = 0; i < medianIndex; i++) {
+            distributionData[i] += medianShift * 0.5;
+        }
+    }
+
+    distributionData = distributionData.map(v => Math.max(1, v));
+
+    updateDistributionVisualization();
+    updateDistributionStatistics();
+}
+
+// Box-Muller transform for Gaussian random numbers
+function gaussianRandom(mean = 0, stdev = 1) {
+    const u = 1 - Math.random();
+    const v = Math.random();
+    const z0 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    return z0 * stdev + mean;
+}
+
+// Calculate mean
+function calculateMean(data) {
+    if (data.length === 0) return 0;
+    return data.reduce((a, b) => a + b, 0) / data.length;
+}
+
+// Calculate median
+function calculateMedian(data) {
+    if (data.length === 0) return 0;
+    const sorted = [...data].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// Calculate standard deviation
+function calculateStdDev(data) {
+    if (data.length === 0) return 0;
+    const mean = calculateMean(data);
+    const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / data.length;
+    return Math.sqrt(variance);
+}
+
+// Calculate skewness
+function calculateSkewness(data) {
+    if (data.length < 3) return 0;
+    const mean = calculateMean(data);
+    const stdDev = calculateStdDev(data);
+    if (stdDev === 0) return 0;
+    
+    const numerator = data.reduce((acc, val) => acc + Math.pow((val - mean) / stdDev, 3), 0);
+    return numerator / data.length;
+}
+
+// Draw distribution visualization
+function updateDistributionVisualization() {
+    if (distributionData.length === 0) return;
+
+    const width = distributionCanvas.parentElement.clientWidth;
+    const height = 400;
+    
+    distributionCanvas.width = width;
+    distributionCanvas.height = height;
+
+    const padding = 50;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
+
+    // Clear canvas
+    distCtx.fillStyle = '#ffffff';
+    distCtx.fillRect(0, 0, width, height);
+
+    // Find min and max for scaling
+    const minValue = Math.min(...distributionData);
+    const maxValue = Math.max(...distributionData);
+    const range = maxValue - minValue || 1;
+
+    // Create histogram bins
+    const binCount = Math.max(10, Math.min(30, Math.floor(Math.sqrt(distributionData.length))));
+    const bins = new Array(binCount).fill(0);
+    const binWidth = range / binCount;
+
+    distributionData.forEach(value => {
+        const binIndex = Math.min(binCount - 1, Math.floor((value - minValue) / binWidth));
+        bins[binIndex]++;
+    });
+
+    const maxBinValue = Math.max(...bins);
+
+    // Draw bars
+    const barWidth = chartWidth / binCount;
+    distCtx.fillStyle = 'rgba(102, 126, 234, 0.7)';
+    
+    bins.forEach((count, i) => {
+        const barHeight = (count / maxBinValue) * chartHeight;
+        const x = padding + i * barWidth;
+        const y = padding + chartHeight - barHeight;
+        
+        distCtx.fillRect(x, y, barWidth - 1, barHeight);
+    });
+
+    // Calculate bin centers for trend line
+    const binCenters = bins.map((_, i) => minValue + (i + 0.5) * binWidth);
+
+    // Draw trend line
+    distCtx.strokeStyle = '#ef4444';
+    distCtx.lineWidth = 3;
+    distCtx.beginPath();
+    
+    bins.forEach((count, i) => {
+        const barHeight = (count / maxBinValue) * chartHeight;
+        const x = padding + (i + 0.5) * barWidth;
+        const y = padding + chartHeight - barHeight;
+        
+        if (i === 0) {
+            distCtx.moveTo(x, y);
+        } else {
+            distCtx.lineTo(x, y);
+        }
+    });
+    distCtx.stroke();
+
+    // Draw axes
+    distCtx.strokeStyle = '#333';
+    distCtx.lineWidth = 2;
+    distCtx.beginPath();
+    distCtx.moveTo(padding, padding);
+    distCtx.lineTo(padding, padding + chartHeight);
+    distCtx.lineTo(padding + chartWidth, padding + chartHeight);
+    distCtx.stroke();
+
+    // Draw mean and median lines
+    const mean = calculateMean(distributionData);
+    const median = calculateMedian(distributionData);
+
+    // Mean line
+    const meanX = padding + ((mean - minValue) / range) * chartWidth;
+    distCtx.strokeStyle = '#667eea';
+    distCtx.lineWidth = 2;
+    distCtx.setLineDash([5, 5]);
+    distCtx.beginPath();
+    distCtx.moveTo(meanX, padding);
+    distCtx.lineTo(meanX, padding + chartHeight);
+    distCtx.stroke();
+
+    // Median line
+    const medianX = padding + ((median - minValue) / range) * chartWidth;
+    distCtx.strokeStyle = '#764ba2';
+    distCtx.lineWidth = 2;
+    distCtx.setLineDash([5, 5]);
+    distCtx.beginPath();
+    distCtx.moveTo(medianX, padding);
+    distCtx.lineTo(medianX, padding + chartHeight);
+    distCtx.stroke();
+    distCtx.setLineDash([]);
+
+    // Draw legend
+    const legendX = padding + 10;
+    const legendY = padding + 10;
+    distCtx.font = 'bold 12px Arial';
+    distCtx.textAlign = 'left';
+    distCtx.fillStyle = '#667eea';
+    distCtx.fillText('▬ Mean', legendX, legendY);
+    distCtx.fillStyle = '#764ba2';
+    distCtx.fillText('▬ Median', legendX, legendY + 16);
+    
+    // Draw axis labels
+    distCtx.font = '11px Arial';
+    distCtx.fillStyle = '#333';
+    distCtx.textAlign = 'center';
+    distCtx.fillText('Value', padding + chartWidth / 2, height - 10);
+    
+    distCtx.save();
+    distCtx.translate(10, padding + chartHeight / 2);
+    distCtx.rotate(-Math.PI / 2);
+    distCtx.fillText('Frequency', 0, 0);
+    distCtx.restore();
+}
+
+// Update statistics display
+function updateDistributionStatistics() {
+    if (distributionData.length === 0) return;
+
+    const mean = calculateMean(distributionData);
+    const median = calculateMedian(distributionData);
+    const stdDev = calculateStdDev(distributionData);
+    const skewness = calculateSkewness(distributionData);
+
+    computedMean.textContent = mean.toFixed(2);
+    computedMedian.textContent = median.toFixed(2);
+    computedStdDev.textContent = stdDev.toFixed(2);
+    computedSkewness.textContent = skewness.toFixed(2);
+
+    // Update insight
+    updatePage2Insight(mean, median, stdDev, skewness);
+}
+
+function updatePage2Insight(mean, median, stdDev, skewness) {
+    let insight = '';
+    const difference = Math.abs(mean - median);
+
+    if (difference < 1) {
+        insight = `✓ The mean (${mean.toFixed(2)}) and median (${median.toFixed(2)}) are nearly equal. This indicates a symmetric distribution.`;
+    } else if (mean > median) {
+        insight = `⚠️ The mean (${mean.toFixed(2)}) is greater than the median (${median.toFixed(2)}) by ${difference.toFixed(2)}. This suggests a right-skewed (positive-skewed) distribution with a tail of larger values pulling the mean up.`;
+    } else {
+        insight = `⚠️ The mean (${mean.toFixed(2)}) is less than the median (${median.toFixed(2)}) by ${difference.toFixed(2)}. This suggests a left-skewed (negative-skewed) distribution with a tail of smaller values pulling the mean down.`;
+    }
+
+    insightTextPage2.textContent = insight;
+}
+
+// Event listeners for Page 2
+meanSlider.addEventListener('input', () => {
+    meanValue.textContent = meanSlider.value;
+    generateDistribution();
+});
+
+medianSlider.addEventListener('input', () => {
+    medianValue.textContent = medianSlider.value;
+    generateDistribution();
+});
+
+datasetSizeSlider.addEventListener('input', () => {
+    datasetSizeValue.textContent = datasetSizeSlider.value;
+    generateDistribution();
+});
+
+generateDistributionBtn.addEventListener('click', generateDistribution);
+
+// Handle resize for distribution canvas
+window.addEventListener('resize', () => {
+    if (document.getElementById('page2-tab').classList.contains('active')) {
+        updateDistributionVisualization();
+    }
+});
+
+// Initialize Page 2 on load
+generateDistribution();
