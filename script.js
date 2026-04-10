@@ -317,6 +317,11 @@ tabButtons.forEach(button => {
                 updateVisualization();
             }, 0);
         } else if (tabName === 'page2') {
+            // Initialize page 2 on first view
+            if (!page2Initialized) {
+                page2Initialized = true;
+                generateDistribution();
+            }
             // Resize distribution canvas when switching to page 2
             setTimeout(() => {
                 if (distributionData.length > 0) {
@@ -342,7 +347,7 @@ const datasetSizeValue = document.getElementById('datasetSizeValue');
 
 const generateDistributionBtn = document.getElementById('generateDistributionBtn');
 const distributionCanvas = document.getElementById('distributionViz');
-const distCtx = distributionCanvas.getContext('2d');
+const distCtx = distributionCanvas ? distributionCanvas.getContext('2d') : null;
 
 const computedMean = document.getElementById('computedMean');
 const computedMedian = document.getElementById('computedMedian');
@@ -351,61 +356,138 @@ const computedSkewness = document.getElementById('computedSkewness');
 const insightTextPage2 = document.getElementById('insightTextPage2');
 
 let distributionData = [];
+let page2Initialized = false;
 
 // Generate a dataset with specified mean and median
 function generateDistribution() {
-    const targetMean = parseInt(meanSlider.value);
-    const targetMedian = parseInt(medianSlider.value);
-    const size = parseInt(datasetSizeSlider.value);
-    const skewness = Math.abs(targetMean - targetMedian) / 100; // Scale based on mean-median difference
+    const targetMean = parseFloat(meanSlider.value);
+    const targetMedian = parseFloat(medianSlider.value);
+    const size = parseInt(datasetSizeSlider.value, 10);
 
-    distributionData = [];
+    // quick guards
+    if (!size || size < 1) return;
 
-    // Generate base data using a skewed distribution
-    // We'll use a combination of normal and log-normal to create skewness
-    for (let i = 0; i < size; i++) {
-        let value;
-        
-        // Generate from a base distribution
-        if (i < size * 0.7) {
-            // 70% from normal distribution around median
-            value = targetMedian + (gaussianRandom() * 15);
-        } else {
-            // 30% from a tail (scattered outliers)
-            const direction = targetMean > targetMedian ? 1 : -1;
-            value = targetMedian + (Math.random() * 80 * direction);
-        }
+    const n = size;
+    const deltaAbs = Math.abs(targetMean - targetMedian);
 
-        distributionData.push(Math.max(1, value));
+    // If mean and median are very close, prefer a normal-based generator
+    if (deltaAbs <= 2.0) {
+        // choose initial sigma relative to targetMean (but at least 4)
+        let sigma = Math.max(4, Math.abs(targetMean) * 0.12);
+        sigma = Math.min(sigma, Math.max(4, Math.abs(targetMean) * 0.5));
+
+        let candidate = [];
+        let iter = 0;
+        do {
+            candidate = [];
+            for (let i = 0; i < n; i++) {
+                candidate.push(targetMean + gaussianRandom(0, sigma));
+            }
+
+            // shift to exact mean
+            const curMean = calculateMean(candidate);
+            const shift = targetMean - curMean;
+            candidate = candidate.map(v => v + shift);
+
+            // if negatives appear, reduce sigma and retry
+            const minVal = Math.min(...candidate);
+            if (minVal >= 1) break;
+            sigma *= 0.85;
+            iter++;
+        } while (iter < 60);
+
+        distributionData = candidate.map(v => Math.max(1, v));
+
+        const actualMean = calculateMean(distributionData);
+        const actualMedian = calculateMedian(distributionData);
+        console.log(`[Page2/NORMAL] n=${n} targetMean=${targetMean} mean=${actualMean.toFixed(3)} targetMedian=${targetMedian} median=${actualMedian.toFixed(3)} sigma=${sigma.toFixed(3)}`);
+
+        updateDistributionVisualization();
+        updateDistributionStatistics();
+        return;
     }
 
-    // Sort the data
-    distributionData.sort((a, b) => a - b);
+    // Otherwise use skewed solver (existing approach)
+    const expCandidates = [1.05, 1.15, 1.3, 1.6, 2.0];
+    const skewCandidates = [0.02, 0.05, 0.1, 0.2, 0.4, 0.7];
+    const medianIndex = (n - 1) / 2;
+    const delta = targetMean - targetMedian;
+    let best = null;
 
-    // Scale and shift to approximate the target mean
-    const currentMean = calculateMean(distributionData);
-    const scaleFactor = currentMean !== 0 ? targetMean / currentMean : 1;
-    
-    distributionData = distributionData.map(v => v * scaleFactor);
+    outer: for (let exp of expCandidates) {
+        for (let skew of skewCandidates) {
+            const sign = delta >= 0 ? 1 : -1;
+            const rightFactor = 1 + sign * skew;
+            const leftFactor = 1 - sign * skew;
 
-    // Fine-tune median by adjusting middle values
-    const sortedData = [...distributionData].sort((a, b) => a - b);
-    const medianIndex = Math.floor(sortedData.length / 2);
-    const currentMedian = sortedData[medianIndex];
-    const medianShift = targetMedian - currentMedian;
-    
-    // Apply shift more heavily to the upper half if mean > median
-    if (targetMean > targetMedian) {
-        for (let i = medianIndex; i < distributionData.length; i++) {
-            distributionData[i] += medianShift * 0.5;
-        }
-    } else {
-        for (let i = 0; i < medianIndex; i++) {
-            distributionData[i] += medianShift * 0.5;
+            const baseOffsets = new Array(n);
+            for (let i = 0; i < n; i++) {
+                const d = i - medianIndex;
+                const absd = Math.abs(d);
+                const base = absd > 0 ? Math.pow(absd, exp) : 0;
+                const factor = d >= 0 ? rightFactor : leftFactor;
+                baseOffsets[i] = (d >= 0 ? 1 : -1) * base * factor;
+            }
+
+            const bMean = calculateMean(baseOffsets);
+            const bMedian = calculateMedian(baseOffsets);
+            const denom = bMean - bMedian;
+            if (Math.abs(denom) < 1e-8) continue;
+
+            let s = (targetMean - targetMedian) / denom;
+            let t = -s * bMedian;
+
+            let candidate = baseOffsets.map(o => targetMedian + s * o + t);
+
+            let iter2 = 0;
+            while (Math.min(...candidate) < 1 && iter2++ < 60) {
+                s *= 0.88;
+                t = -s * bMedian;
+                candidate = baseOffsets.map(o => targetMedian + s * o + t);
+            }
+
+            const meanVal = calculateMean(candidate);
+            const medianVal = calculateMedian(candidate);
+            const maxErr = Math.max(Math.abs(meanVal - targetMean), Math.abs(medianVal - targetMedian));
+            if (maxErr <= 1.0) {
+                distributionData = candidate.map(v => Math.max(1, v));
+                break outer;
+            }
+
+            if (!best || maxErr < best.err) best = { distribution: candidate.slice(), err: maxErr };
         }
     }
 
-    distributionData = distributionData.map(v => Math.max(1, v));
+    if (!distributionData.length) {
+        if (best) distributionData = best.distribution.map(v => Math.max(1, v));
+        else {
+            const arr = new Array(n);
+            const mid = Math.floor(n / 2);
+            for (let i = 0; i < n; i++) {
+                if (n % 2 === 1 && i === mid) arr[i] = targetMedian;
+                else if (i < mid) arr[i] = targetMedian - (mid - i);
+                else arr[i] = targetMedian + (i - mid + (n % 2 === 0 ? 1 : 0));
+            }
+
+            const currentSum = arr.reduce((a, b) => a + b, 0);
+            let diff = targetMean * n - currentSum;
+            let idx = n - 1;
+            let pass = 0;
+            while (Math.abs(diff) > 1e-6 && pass < 1000) {
+                const add = Math.sign(diff) * Math.max(1e-3, Math.abs(diff) / (idx + 1));
+                arr[idx] += add;
+                diff -= add;
+                idx--;
+                if (idx < 0) { idx = n - 1; pass++; }
+            }
+
+            distributionData = arr.map(v => Math.max(1, v));
+        }
+    }
+
+    const actualMean = calculateMean(distributionData);
+    const actualMedian = calculateMedian(distributionData);
+    console.log(`[Page2/SKEW] n=${n} targetMean=${targetMean} mean=${actualMean.toFixed(3)} targetMedian=${targetMedian} median=${actualMedian.toFixed(3)}`);
 
     updateDistributionVisualization();
     updateDistributionStatistics();
@@ -456,19 +538,25 @@ function calculateSkewness(data) {
 function updateDistributionVisualization() {
     if (distributionData.length === 0) return;
 
-    const width = distributionCanvas.parentElement.clientWidth;
+    const canvas = document.getElementById('distributionViz');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.parentElement.clientWidth;
     const height = 400;
     
-    distributionCanvas.width = width;
-    distributionCanvas.height = height;
+    canvas.width = width;
+    canvas.height = height;
 
     const padding = 50;
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
 
     // Clear canvas
-    distCtx.fillStyle = '#ffffff';
-    distCtx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
 
     // Find min and max for scaling
     const minValue = Math.min(...distributionData);
@@ -489,23 +577,23 @@ function updateDistributionVisualization() {
 
     // Draw bars
     const barWidth = chartWidth / binCount;
-    distCtx.fillStyle = 'rgba(102, 126, 234, 0.7)';
+    ctx.fillStyle = 'rgba(102, 126, 234, 0.7)';
     
     bins.forEach((count, i) => {
         const barHeight = (count / maxBinValue) * chartHeight;
         const x = padding + i * barWidth;
         const y = padding + chartHeight - barHeight;
         
-        distCtx.fillRect(x, y, barWidth - 1, barHeight);
+        ctx.fillRect(x, y, barWidth - 1, barHeight);
     });
 
     // Calculate bin centers for trend line
     const binCenters = bins.map((_, i) => minValue + (i + 0.5) * binWidth);
 
     // Draw trend line
-    distCtx.strokeStyle = '#ef4444';
-    distCtx.lineWidth = 3;
-    distCtx.beginPath();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
     
     bins.forEach((count, i) => {
         const barHeight = (count / maxBinValue) * chartHeight;
@@ -513,21 +601,41 @@ function updateDistributionVisualization() {
         const y = padding + chartHeight - barHeight;
         
         if (i === 0) {
-            distCtx.moveTo(x, y);
+            ctx.moveTo(x, y);
         } else {
-            distCtx.lineTo(x, y);
+            ctx.lineTo(x, y);
         }
     });
-    distCtx.stroke();
+    ctx.stroke();
 
     // Draw axes
-    distCtx.strokeStyle = '#333';
-    distCtx.lineWidth = 2;
-    distCtx.beginPath();
-    distCtx.moveTo(padding, padding);
-    distCtx.lineTo(padding, padding + chartHeight);
-    distCtx.lineTo(padding + chartWidth, padding + chartHeight);
-    distCtx.stroke();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, padding + chartHeight);
+    ctx.lineTo(padding + chartWidth, padding + chartHeight);
+    ctx.stroke();
+
+    // Draw x-axis labels (value range)
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'center';
+    const xLabelCount = 5;
+    for (let i = 0; i <= xLabelCount; i++) {
+        const x = padding + (i / xLabelCount) * chartWidth;
+        const value = minValue + (i / xLabelCount) * range;
+        ctx.fillText(value.toFixed(0), x, padding + chartHeight + 15);
+    }
+
+    // Draw y-axis labels (frequency)
+    ctx.textAlign = 'right';
+    const yLabelCount = 4;
+    for (let i = 0; i <= yLabelCount; i++) {
+        const y = padding + chartHeight - (i / yLabelCount) * chartHeight;
+        const value = Math.round((i / yLabelCount) * maxBinValue);
+        ctx.fillText(value.toString(), padding - 10, y + 4);
+    }
 
     // Draw mean and median lines
     const mean = calculateMean(distributionData);
@@ -535,46 +643,59 @@ function updateDistributionVisualization() {
 
     // Mean line
     const meanX = padding + ((mean - minValue) / range) * chartWidth;
-    distCtx.strokeStyle = '#667eea';
-    distCtx.lineWidth = 2;
-    distCtx.setLineDash([5, 5]);
-    distCtx.beginPath();
-    distCtx.moveTo(meanX, padding);
-    distCtx.lineTo(meanX, padding + chartHeight);
-    distCtx.stroke();
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(meanX, padding);
+    ctx.lineTo(meanX, padding + chartHeight);
+    ctx.stroke();
+
+    // Mean label
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#667eea';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`μ: ${mean.toFixed(1)}`, meanX, padding - 10);
 
     // Median line
     const medianX = padding + ((median - minValue) / range) * chartWidth;
-    distCtx.strokeStyle = '#764ba2';
-    distCtx.lineWidth = 2;
-    distCtx.setLineDash([5, 5]);
-    distCtx.beginPath();
-    distCtx.moveTo(medianX, padding);
-    distCtx.lineTo(medianX, padding + chartHeight);
-    distCtx.stroke();
-    distCtx.setLineDash([]);
+    ctx.strokeStyle = '#764ba2';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(medianX, padding);
+    ctx.lineTo(medianX, padding + chartHeight);
+    ctx.stroke();
+
+    // Median label
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#764ba2';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`M: ${median.toFixed(1)}`, medianX, padding + 12);
 
     // Draw legend
-    const legendX = padding + 10;
-    const legendY = padding + 10;
-    distCtx.font = 'bold 12px Arial';
-    distCtx.textAlign = 'left';
-    distCtx.fillStyle = '#667eea';
-    distCtx.fillText('▬ Mean', legendX, legendY);
-    distCtx.fillStyle = '#764ba2';
-    distCtx.fillText('▬ Median', legendX, legendY + 16);
+    const legendX = padding + 15;
+    const legendY = padding + 35;
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#667eea';
+    ctx.fillText('μ = Mean', legendX, legendY);
+    ctx.fillStyle = '#764ba2';
+    ctx.fillText('M = Median', legendX, legendY + 16);
     
     // Draw axis labels
-    distCtx.font = '11px Arial';
-    distCtx.fillStyle = '#333';
-    distCtx.textAlign = 'center';
-    distCtx.fillText('Value', padding + chartWidth / 2, height - 10);
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'center';
+    ctx.fillText('Value', padding + chartWidth / 2, height - 10);
     
-    distCtx.save();
-    distCtx.translate(10, padding + chartHeight / 2);
-    distCtx.rotate(-Math.PI / 2);
-    distCtx.fillText('Frequency', 0, 0);
-    distCtx.restore();
+    ctx.save();
+    ctx.translate(10, padding + chartHeight / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Frequency', 0, 0);
+    ctx.restore();
 }
 
 // Update statistics display
@@ -611,22 +732,30 @@ function updatePage2Insight(mean, median, stdDev, skewness) {
 }
 
 // Event listeners for Page 2
-meanSlider.addEventListener('input', () => {
-    meanValue.textContent = meanSlider.value;
-    generateDistribution();
-});
+if (meanSlider) {
+    meanSlider.addEventListener('input', () => {
+        meanValue.textContent = meanSlider.value;
+        generateDistribution();
+    });
+}
 
-medianSlider.addEventListener('input', () => {
-    medianValue.textContent = medianSlider.value;
-    generateDistribution();
-});
+if (medianSlider) {
+    medianSlider.addEventListener('input', () => {
+        medianValue.textContent = medianSlider.value;
+        generateDistribution();
+    });
+}
 
-datasetSizeSlider.addEventListener('input', () => {
-    datasetSizeValue.textContent = datasetSizeSlider.value;
-    generateDistribution();
-});
+if (datasetSizeSlider) {
+    datasetSizeSlider.addEventListener('input', () => {
+        datasetSizeValue.textContent = datasetSizeSlider.value;
+        generateDistribution();
+    });
+}
 
-generateDistributionBtn.addEventListener('click', generateDistribution);
+if (generateDistributionBtn) {
+    generateDistributionBtn.addEventListener('click', generateDistribution);
+}
 
 // Handle resize for distribution canvas
 window.addEventListener('resize', () => {
@@ -634,6 +763,3 @@ window.addEventListener('resize', () => {
         updateDistributionVisualization();
     }
 });
-
-// Initialize Page 2 on load
-generateDistribution();
