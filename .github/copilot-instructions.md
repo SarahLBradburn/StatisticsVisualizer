@@ -9,7 +9,7 @@ applyTo: "**/*"
 # Project Instructions
 
 - This project is a standalone client-side web app.
-- Use only vanilla HTML, CSS, and JavaScript; do not introduce `npm`, `node`, or any external bundling tools.
+- Use only vanilla HTML, CSS, and JavaScript; do not introduce `npm`, `node`, or any external bundling tools. However, feel free to use any JavaScript libraries that help with visual style, data visualization, or math.
 - Maintain an engaging, polished visual style inspired by mathematical explainer tools like 3Blue1Brown, but do not copy any trademark colors or branding.
 - The goal of the project is to visually show how a predictive accuracy can be misleading when describing datasets where true positives make a small fraction of the possible predictions, for example, a disease that is very rare in the population. 
 - The user should be able to use an interactive slider to experiment with an accuracy between 0% and 100%.
