@@ -13,7 +13,12 @@
             <p class="subtitle">Explore how high accuracy can be misleading when the positive case is rare</p>
         </header>
 
-        <main>
+        <nav class="tabs-nav">
+            <button class="tab-button active" data-tab="visualizer">Visualizer</button>
+            <button class="tab-button" data-tab="page2">Page 2</button>
+        </nav>
+
+        <main id="visualizer-tab" class="tab-content active">
             <section class="controls-section">
                 <h2>Population Parameters</h2>
                 <div class="control-group">
@@ -150,6 +155,13 @@
                 </p>
             </section>
         </main>
+
+        <div id="page2-tab" class="tab-content" style="display: none;">
+            <div style="padding: 40px; text-align: center;">
+                <h2>Page 2</h2>
+                <p>This page is blank for now.</p>
+            </div>
+        </div>
 
         <footer>
             <p>A visualization tool for understanding predictive accuracy in imbalanced datasets</p>

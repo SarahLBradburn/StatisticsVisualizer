@@ -293,3 +293,29 @@ window.addEventListener('resize', () => {
 // Initialize
 resizeCanvas();
 generatePopulation();
+
+// Tab navigation
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabContents = document.querySelectorAll('.tab-content');
+
+tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const tabName = button.getAttribute('data-tab');
+
+        // Remove active class from all buttons and contents
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        // Add active class to clicked button and corresponding content
+        button.classList.add('active');
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+
+        // Resize canvas when switching back to visualizer tab
+        if (tabName === 'visualizer') {
+            setTimeout(() => {
+                resizeCanvas();
+                updateVisualization();
+            }, 0);
+        }
+    });
+});
