@@ -80,14 +80,13 @@ function generatePopulation() {
         });
     }
 
-    // Select random indices for visualization
-    visualizationIndices = [];
-    while (visualizationIndices.length < VISUALIZATION_DOTS) {
-        const idx = Math.floor(Math.random() * population.length);
-        if (!visualizationIndices.includes(idx)) {
-            visualizationIndices.push(idx);
-        }
+    // Select random indices for visualization (Fisher-Yates shuffle then slice)
+    const indices = Array.from({ length: population.length }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0 && i > indices.length - 1 - VISUALIZATION_DOTS; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
     }
+    visualizationIndices = indices.slice(indices.length - VISUALIZATION_DOTS);
 
     updateVisualization();
     updateStatistics();

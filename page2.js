@@ -23,6 +23,95 @@ const insightTextPage2 = document.getElementById('insightTextPage2');
 
 let distributionData = [];
 let page2Initialized = false;
+let distributionChart = null;
+
+// Plugin: draw vertical lines for mean (μ) and median (M) on the Chart.js histogram
+const meanMedianPlugin = {
+    id: 'meanMedianPlugin',
+    afterDraw: (chart) => {
+        if (!chart || !chart.data || !chart.data.labels || chart.data.labels.length === 0) return;
+        const ctx = chart.ctx;
+        const { top, bottom } = chart.chartArea || {};
+        const xScale = chart.scales && chart.scales['x'];
+        if (!xScale || top === undefined || bottom === undefined) return;
+
+        // Parse numeric centers from labels
+        const centers = chart.data.labels.map(l => Number(l));
+        if (!centers || centers.length === 0) return;
+
+        const mean = calculateMean(distributionData || []);
+        const median = calculateMedian(distributionData || []);
+
+        const draw = (value, color, label) => {
+            if (typeof value !== 'number' || Number.isNaN(value)) return;
+            // find closest center index
+            let closestIdx = 0;
+            let minDiff = Number.POSITIVE_INFINITY;
+            for (let i = 0; i < centers.length; i++) {
+                const d = Math.abs(centers[i] - value);
+                if (d < minDiff) { minDiff = d; closestIdx = i; }
+            }
+
+            // Determine pixel x coordinate robustly (prefer element.x, then scale lookup, then proportional fallback)
+            let x;
+            const meta = chart.getDatasetMeta && chart.getDatasetMeta(0);
+            if (meta && meta.data && meta.data[closestIdx] && typeof meta.data[closestIdx].x === 'number') {
+                x = meta.data[closestIdx].x;
+            } else {
+                const labelValue = chart.data.labels[closestIdx];
+                if (xScale && typeof xScale.getPixelForValue === 'function') {
+                    x = xScale.getPixelForValue(labelValue);
+                } else {
+                    // fallback: compute proportional position inside chart area
+                    const left = chart.chartArea.left;
+                    const right = chart.chartArea.right;
+                    x = left + ((closestIdx + 0.5) / centers.length) * (right - left);
+                }
+            }
+
+            // Clamp x inside chart area
+            const left = chart.chartArea.left;
+            const right = chart.chartArea.right;
+            if (x < left) x = left + 6;
+            if (x > right) x = right - 6;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.moveTo(x, top);
+            ctx.lineTo(x, bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Position label to the right of the line, clamped inside chart area
+            const labelText = `${label}: ${value.toFixed(1)}`;
+            ctx.font = '12px Arial';
+            const offset = 8;
+            const padding = 6;
+            let labelX = x + offset;
+            const textWidth = ctx.measureText(labelText).width;
+            const rightLimit = chart.chartArea.right - padding;
+            const leftLimit = chart.chartArea.left + padding;
+            if (labelX + textWidth > rightLimit) {
+                // fallback to left side of the line
+                labelX = x - offset - textWidth;
+            }
+            if (labelX < leftLimit) labelX = leftLimit;
+            let labelY = top + 16;
+            if (labelY > bottom - 6) labelY = bottom - 6;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'left';
+            ctx.fillText(labelText, labelX, labelY);
+            ctx.restore();
+        };
+
+        draw(mean, '#667eea', 'μ');
+        draw(median, '#764ba2', 'M');
+    }
+};
+Chart.register(meanMedianPlugin);
 
 // Generate a dataset with specified mean and median
 function generateDistribution() {
@@ -160,69 +249,71 @@ function generateDistribution() {
 }
 
 // Box-Muller transform for Gaussian random numbers
+// Gaussian sampler: prefer d3.randomNormal when available, fallback to Box–Muller
 function gaussianRandom(mean = 0, stdev = 1) {
+    if (typeof d3 !== 'undefined' && typeof d3.randomNormal === 'function') {
+        // d3.randomNormal(mu, sigma) returns a generator function
+        try {
+            return d3.randomNormal(mean, stdev)();
+        } catch (e) {
+            // fallback to Box-Muller below
+        }
+    }
+
+    // Fallback: Box–Muller transform
     const u = 1 - Math.random();
     const v = Math.random();
     const z0 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
     return z0 * stdev + mean;
 }
 
-// Calculate mean
+// Calculate mean (use simple-statistics if available)
 function calculateMean(data) {
+    if (typeof ss !== 'undefined' && typeof ss.mean === 'function') return ss.mean(data);
     if (data.length === 0) return 0;
     return data.reduce((a, b) => a + b, 0) / data.length;
 }
 
-// Calculate median
+// Calculate median (use simple-statistics if available)
 function calculateMedian(data) {
+    if (typeof ss !== 'undefined' && typeof ss.median === 'function') return ss.median(data);
     if (data.length === 0) return 0;
     const sorted = [...data].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-// Calculate standard deviation
+// Calculate standard deviation (use simple-statistics if available)
 function calculateStdDev(data) {
+    if (typeof ss !== 'undefined' && typeof ss.standardDeviation === 'function') return ss.standardDeviation(data);
     if (data.length === 0) return 0;
     const mean = calculateMean(data);
     const variance = data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / data.length;
     return Math.sqrt(variance);
 }
 
-// Calculate skewness
+// Calculate skewness (use simple-statistics if available)
 function calculateSkewness(data) {
+    if (typeof ss !== 'undefined' && typeof ss.sampleSkewness === 'function') return ss.sampleSkewness(data);
     if (data.length < 3) return 0;
     const mean = calculateMean(data);
     const stdDev = calculateStdDev(data);
     if (stdDev === 0) return 0;
-    
     const numerator = data.reduce((acc, val) => acc + Math.pow((val - mean) / stdDev, 3), 0);
     return numerator / data.length;
 }
 
-// Draw distribution visualization
+// Draw distribution visualization using Chart.js
 function updateDistributionVisualization() {
     if (distributionData.length === 0) return;
 
     const canvas = document.getElementById('distributionViz');
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
 
     const width = canvas.parentElement.clientWidth;
     const height = 400;
-    
     canvas.width = width;
     canvas.height = height;
-
-    const padding = 50;
-    const chartWidth = width - padding * 2;
-    const chartHeight = height - padding * 2;
-
-    // Clear canvas
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
 
     // Find min and max for scaling
     const minValue = Math.min(...distributionData);
@@ -239,129 +330,95 @@ function updateDistributionVisualization() {
         bins[binIndex]++;
     });
 
-    const maxBinValue = Math.max(...bins);
-
-    // Draw bars
-    const barWidth = chartWidth / binCount;
-    ctx.fillStyle = 'rgba(102, 126, 234, 0.7)';
-    
-    bins.forEach((count, i) => {
-        const barHeight = (count / maxBinValue) * chartHeight;
-        const x = padding + i * barWidth;
-        const y = padding + chartHeight - barHeight;
-        
-        ctx.fillRect(x, y, barWidth - 1, barHeight);
-    });
-
-    // Calculate bin centers for trend line
     const binCenters = bins.map((_, i) => minValue + (i + 0.5) * binWidth);
+    const labels = binCenters.map(v => Math.round(v).toString());
 
-    // Draw trend line
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    
-    bins.forEach((count, i) => {
-        const barHeight = (count / maxBinValue) * chartHeight;
-        const x = padding + (i + 0.5) * barWidth;
-        const y = padding + chartHeight - barHeight;
-        
-        if (i === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
+    // Use Chart.js to render histogram and a smoothed trendline
+    const ctx = canvas.getContext('2d');
+
+    // Simple moving-average smoother for trendline
+    const smoothBins = (arr, windowSize = 3) => {
+        const n = arr.length;
+        if (n === 0) return [];
+        const out = new Array(n).fill(0);
+        const half = Math.floor(windowSize / 2);
+        for (let i = 0; i < n; i++) {
+            let sum = 0, count = 0;
+            for (let j = i - half; j <= i + half; j++) {
+                if (j >= 0 && j < n) { sum += arr[j]; count++; }
+            }
+            out[i] = count > 0 ? sum / count : 0;
         }
-    });
-    ctx.stroke();
+        return out;
+    };
 
-    // Draw axes
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, padding + chartHeight);
-    ctx.lineTo(padding + chartWidth, padding + chartHeight);
-    ctx.stroke();
+    const smoothWindow = Math.max(3, Math.floor(binCount / 6));
+    const trendData = smoothBins(bins, smoothWindow);
 
-    // Draw x-axis labels (value range)
-    ctx.font = '11px Arial';
-    ctx.fillStyle = '#666';
-    ctx.textAlign = 'center';
-    const xLabelCount = 5;
-    for (let i = 0; i <= xLabelCount; i++) {
-        const x = padding + (i / xLabelCount) * chartWidth;
-        const value = minValue + (i / xLabelCount) * range;
-        ctx.fillText(value.toFixed(0), x, padding + chartHeight + 15);
+    if (!distributionChart) {
+        distributionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Frequency',
+                        data: bins,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1,
+                        order: 1
+                    },
+                    {
+                        type: 'line',
+                        label: 'Trend',
+                        data: trendData,
+                        borderColor: '#ef4444',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 0,
+                        order: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Value' } },
+                    y: { title: { display: true, text: 'Frequency' }, beginAtZero: true }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    } else {
+        distributionChart.data.labels = labels;
+        // Ensure datasets exist
+        if (!distributionChart.data.datasets || distributionChart.data.datasets.length === 0) {
+            distributionChart.data.datasets = [{ label: 'Frequency', data: bins }];
+        }
+        distributionChart.data.datasets[0].data = bins;
+        if (distributionChart.data.datasets.length < 2) {
+            distributionChart.data.datasets.push({
+                type: 'line',
+                label: 'Trend',
+                data: trendData,
+                borderColor: '#ef4444',
+                borderWidth: 3,
+                tension: 0.4,
+                fill: false,
+                pointRadius: 0,
+                order: 2
+            });
+        } else {
+            distributionChart.data.datasets[1].data = trendData;
+        }
+
+        distributionChart.update();
     }
-
-    // Draw y-axis labels (frequency)
-    ctx.textAlign = 'right';
-    const yLabelCount = 4;
-    for (let i = 0; i <= yLabelCount; i++) {
-        const y = padding + chartHeight - (i / yLabelCount) * chartHeight;
-        const value = Math.round((i / yLabelCount) * maxBinValue);
-        ctx.fillText(value.toString(), padding - 10, y + 4);
-    }
-
-    // Draw mean and median lines
-    const mean = calculateMean(distributionData);
-    const median = calculateMedian(distributionData);
-
-    // Mean line
-    const meanX = padding + ((mean - minValue) / range) * chartWidth;
-    ctx.strokeStyle = '#667eea';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(meanX, padding);
-    ctx.lineTo(meanX, padding + chartHeight);
-    ctx.stroke();
-
-    // Mean label
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#667eea';
-    ctx.font = 'bold 12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(`μ: ${mean.toFixed(1)}`, meanX, padding - 10);
-
-    // Median line
-    const medianX = padding + ((median - minValue) / range) * chartWidth;
-    ctx.strokeStyle = '#764ba2';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(medianX, padding);
-    ctx.lineTo(medianX, padding + chartHeight);
-    ctx.stroke();
-
-    // Median label
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#764ba2';
-    ctx.font = 'bold 12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(`M: ${median.toFixed(1)}`, medianX, padding + 12);
-
-    // Draw legend
-    const legendX = padding + 15;
-    const legendY = padding + 35;
-    ctx.font = 'bold 11px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#667eea';
-    ctx.fillText('μ = Mean', legendX, legendY);
-    ctx.fillStyle = '#764ba2';
-    ctx.fillText('M = Median', legendX, legendY + 16);
-    
-    // Draw axis labels
-    ctx.font = '11px Arial';
-    ctx.fillStyle = '#333';
-    ctx.textAlign = 'center';
-    ctx.fillText('Value', padding + chartWidth / 2, height - 10);
-    
-    ctx.save();
-    ctx.translate(10, padding + chartHeight / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Frequency', 0, 0);
-    ctx.restore();
 }
 
 // Update statistics display
