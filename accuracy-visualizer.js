@@ -1,7 +1,6 @@
 // Configuration
 
-const POPULATION_SIZE = 1000;
-const VISUALIZATION_DOTS = 500; // Show subset for better visualization
+const POPULATION_SIZE = 500; // Population size = visualization size
 const DOT_RADIUS = 4;
 
 // DOM Elements
@@ -38,7 +37,6 @@ const insightText = document.getElementById('insightText');
 
 // State
 let population = [];
-let visualizationIndices = [];
 
 // Initialize canvas size
 function resizeCanvas() {
@@ -79,14 +77,6 @@ function generatePopulation() {
             predicted,
         });
     }
-
-    // Select random indices for visualization (Fisher-Yates shuffle then slice)
-    const indices = Array.from({ length: population.length }, (_, i) => i);
-    for (let i = indices.length - 1; i > 0 && i > indices.length - 1 - VISUALIZATION_DOTS; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
-    }
-    visualizationIndices = indices.slice(indices.length - VISUALIZATION_DOTS);
 
     updateVisualization();
     updateStatistics();
@@ -150,12 +140,11 @@ function updateVisualization() {
     }
 
     // Draw dots for visualization subset
-    const dotsPerRow = Math.ceil(Math.sqrt(VISUALIZATION_DOTS));
+    const dotsPerRow = Math.ceil(Math.sqrt(POPULATION_SIZE));
     const spacingX = width / (dotsPerRow + 1);
     const spacingY = height / (dotsPerRow + 1);
 
-    visualizationIndices.forEach((idx, index) => {
-        const person = population[idx];
+    population.forEach((person, index) => {
         const row = Math.floor(index / dotsPerRow);
         const col = index % dotsPerRow;
 

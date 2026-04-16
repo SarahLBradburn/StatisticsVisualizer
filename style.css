@@ -95,6 +95,26 @@ header .subtitle {
 
 main {
     padding: 40px;
+    display: grid;
+    gap: 30px;
+}
+
+/* Two-column layout for controls and visualization */
+.controls-and-viz {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    align-items: start;
+}
+
+.controls-and-viz .controls-section {
+    grid-column: 1;
+    margin-bottom: 0;
+}
+
+.controls-and-viz .visualization-section {
+    grid-column: 2;
+    margin-bottom: 0;
 }
 
 section {
@@ -435,6 +455,12 @@ footer {
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+    .controls-and-viz {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 768px) {
     main {
         padding: 20px;

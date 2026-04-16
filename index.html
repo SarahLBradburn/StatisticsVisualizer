@@ -19,63 +19,65 @@
         </nav>
 
         <main id="visualizer-tab" class="tab-content active">
-            <section class="controls-section">
-                <h2>Population Parameters</h2>
-                <div class="control-group">
-                    <label for="prevalenceSlider">
-                        Prevalence (Disease Rate in Population)
-                        <span class="value-display" id="prevalenceValue">10%</span>
-                    </label>
-                    <input
-                        type="range"
-                        id="prevalenceSlider"
-                        min="1"
-                        max="100"
-                        value="10"
-                        class="slider"
-                    >
-                </div>
+            <div class="controls-and-viz">
+                <section class="controls-section">
+                    <h2>Population Parameters</h2>
+                    <div class="control-group">
+                        <label for="prevalenceSlider">
+                            Prevalence (Disease Rate in Population)
+                            <span class="value-display" id="prevalenceValue">10%</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="prevalenceSlider"
+                            min="1"
+                            max="100"
+                            value="10"
+                            class="slider"
+                        >
+                    </div>
 
-                <div class="control-group">
-                    <label for="accuracySlider">
-                        Model Accuracy
-                        <span class="value-display" id="accuracyValue">95%</span>
-                    </label>
-                    <input
-                        type="range"
-                        id="accuracySlider"
-                        min="0"
-                        max="100"
-                        value="95"
-                        class="slider"
-                    >
-                </div>
+                    <div class="control-group">
+                        <label for="accuracySlider">
+                            Model Accuracy
+                            <span class="value-display" id="accuracyValue">95%</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="accuracySlider"
+                            min="0"
+                            max="100"
+                            value="95"
+                            class="slider"
+                        >
+                    </div>
 
-                <div class="control-group">
-                    <label for="biasSlider">
-                        False Positive Bias (0=balanced, 100=favor false positives)
-                        <span class="value-display" id="biasValue">50%</span>
-                    </label>
-                    <input
-                        type="range"
-                        id="biasSlider"
-                        min="0"
-                        max="100"
-                        value="50"
-                        class="slider"
-                    >
-                </div>
+                    <div class="control-group">
+                        <label for="biasSlider">
+                            False Positive Bias (0=balanced, 100=favor false positives)
+                            <span class="value-display" id="biasValue">50%</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="biasSlider"
+                            min="0"
+                            max="100"
+                            value="50"
+                            class="slider"
+                        >
+                    </div>
 
-                <button id="regenerateButton" class="regenerate-btn">Generate New Sample</button>
-            </section>
+                    <button id="regenerateButton" class="regenerate-btn">Generate New Sample</button>
+                </section>
 
-            <section class="visualization-section">
-                <h2>Population Visualization</h2>
-                <p class="viz-description">Each dot represents a person. Colors show true condition (outer ring) vs predicted condition (center).</p>
-                <div id="populationCanvas" class="canvas-container">
-                    <canvas id="populationViz"></canvas>
-                </div>
-            </section>
+                <section class="visualization-section">
+                    <h2>Population Visualization</h2>
+                    <p class="viz-description">Each dot represents a person. Colors show true condition (outer ring) vs predicted condition (center).</p>
+                    <div id="populationCanvas" class="canvas-container">
+                        <canvas id="populationViz"></canvas>
+                    </div>
+                </section>
+            </div>
 
             <section class="stats-section">
                 <h2>Prediction Statistics</h2>
@@ -161,63 +163,65 @@
                 <h2>Mean vs Median Visualizer</h2>
                 <p class="subtitle" style="margin-bottom: 30px;">Explore how mean and median differ in skewed distributions</p>
 
-                <section class="controls-section">
-                    <h3>Distribution Parameters</h3>
-                    <div class="control-group">
-                        <label for="meanSlider">
-                            Mean
-                            <span class="value-display" id="meanValue">50</span>
-                        </label>
-                        <input
-                            type="range"
-                            id="meanSlider"
-                            min="10"
-                            max="200"
-                            value="50"
-                            class="slider"
-                        >
-                    </div>
+                <div class="controls-and-viz">
+                    <section class="controls-section">
+                        <h3>Distribution Parameters</h3>
+                        <div class="control-group">
+                            <label for="meanSlider">
+                                Mean
+                                <span class="value-display" id="meanValue">50</span>
+                            </label>
+                            <input
+                                type="range"
+                                id="meanSlider"
+                                min="10"
+                                max="200"
+                                value="50"
+                                class="slider"
+                            >
+                        </div>
 
-                    <div class="control-group">
-                        <label for="medianSlider">
-                            Median
-                            <span class="value-display" id="medianValue">50</span>
-                        </label>
-                        <input
-                            type="range"
-                            id="medianSlider"
-                            min="10"
-                            max="200"
-                            value="50"
-                            class="slider"
-                        >
-                    </div>
+                        <div class="control-group">
+                            <label for="medianSlider">
+                                Median
+                                <span class="value-display" id="medianValue">50</span>
+                            </label>
+                            <input
+                                type="range"
+                                id="medianSlider"
+                                min="10"
+                                max="200"
+                                value="50"
+                                class="slider"
+                            >
+                        </div>
 
-                    <div class="control-group">
-                        <label for="datasetSizeSlider">
-                            Dataset Size
-                            <span class="value-display" id="datasetSizeValue">100</span>
-                        </label>
-                        <input
-                            type="range"
-                            id="datasetSizeSlider"
-                            min="20"
-                            max="500"
-                            value="100"
-                            step="10"
-                            class="slider"
-                        >
-                    </div>
+                        <div class="control-group">
+                            <label for="datasetSizeSlider">
+                                Dataset Size
+                                <span class="value-display" id="datasetSizeValue">100</span>
+                            </label>
+                            <input
+                                type="range"
+                                id="datasetSizeSlider"
+                                min="20"
+                                max="500"
+                                value="100"
+                                step="10"
+                                class="slider"
+                            >
+                        </div>
 
-                    <button id="generateDistributionBtn" class="regenerate-btn">Generate Distribution</button>
-                </section>
+                        <button id="generateDistributionBtn" class="regenerate-btn">Generate Distribution</button>
+                    </section>
 
-                <section class="visualization-section">
-                    <h2>Distribution Chart</h2>
-                    <div id="distributionCanvas" class="canvas-container">
-                        <canvas id="distributionViz"></canvas>
-                    </div>
-                </section>
+                    <section class="visualization-section">
+                        <h2>Distribution Chart</h2>
+                        <div id="distributionCanvas" class="canvas-container">
+                            <canvas id="distributionViz"></canvas>
+                        </div>
+                    </section>
+                </div>
 
                 <section class="stats-section">
                     <h2>Statistics</h2>
