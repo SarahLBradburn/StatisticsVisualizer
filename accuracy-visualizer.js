@@ -1,6 +1,6 @@
 // Configuration
 
-const POPULATION_SIZE = 475; // Population size = visualization size (reduced to avoid legend area)
+const POPULATION_SIZE = 459; // Population size = visualization size (reduced to avoid legend area)
 const DOT_RADIUS = 4;
 
 // DOM Elements
@@ -54,18 +54,19 @@ function generatePopulation() {
     population = [];
 
     for (let i = 0; i < POPULATION_SIZE; i++) {
-        // True condition: based on prevalence
-        const trueCondition = Math.random() < prevalence;
 
+        let trueCondition = true;
         // Predicted condition: based on accuracy and bias
         let predicted;
-        if (trueCondition) {
+        if (i < POPULATION_SIZE * prevalence) {
             // True positive rate (sensitivity)
+            trueCondition = true; // Condition is present
             predicted = Math.random() < accuracy;
         } else {
             // True negative vs false positive
             // Bias determines the split between true negatives and false positives
             // when the model is wrong
+            trueCondition = false;
             const errorRate = 1 - accuracy;
             const falsePositiveRate = errorRate * bias; // bias toward false positives
             predicted = Math.random() < falsePositiveRate;
@@ -144,13 +145,16 @@ function updateVisualization() {
     const spacingX = width / (dotsPerRow + 1);
     const spacingY = height / (dotsPerRow + 1);
 
-    population.forEach((person, index) => {
+    for (let i = 0; i < population.length; i++) {
+        const person = population[i];
+        const index = i;
         const row = Math.floor(index / dotsPerRow);
         const col = index % dotsPerRow;
 
         // Skip dots in the top-left 5x5 area to avoid drawing over the legend
         if (row < 5 && col < 5) {
-            return;
+            population.push(person); // We want to draw this later
+            continue;
         }
 
         const x = spacingX * (col + 1);
@@ -168,7 +172,7 @@ function updateVisualization() {
         ctx.beginPath();
         ctx.arc(x, y, DOT_RADIUS, 0, Math.PI * 2);
         ctx.fill();
-    });
+    }
 
     // Draw legend
     const legendX = 15;
