@@ -1,6 +1,6 @@
 // Configuration
 
-const POPULATION_SIZE = 500; // Population size = visualization size
+const POPULATION_SIZE = 475; // Population size = visualization size (reduced to avoid legend area)
 const DOT_RADIUS = 4;
 
 // DOM Elements
@@ -147,6 +147,11 @@ function updateVisualization() {
     population.forEach((person, index) => {
         const row = Math.floor(index / dotsPerRow);
         const col = index % dotsPerRow;
+
+        // Skip dots in the top-left 5x5 area to avoid drawing over the legend
+        if (row < 5 && col < 5) {
+            return;
+        }
 
         const x = spacingX * (col + 1);
         const y = spacingY * (row + 1);
