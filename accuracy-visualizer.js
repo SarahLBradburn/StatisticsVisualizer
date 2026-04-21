@@ -52,24 +52,50 @@ function generatePopulation() {
     const bias = parseInt(biasSlider.value) / 100;
 
     population = [];
+    let totalInaccurate = Math.round((1 - accuracy) * POPULATION_SIZE);
+    let totalActualPositives = Math.round(prevalence * POPULATION_SIZE);
+    let totalActualNegatives = POPULATION_SIZE - totalActualPositives;
 
+    let targetFalsePositives = totalInaccurate * bias;
+    let targetFalseNegatives = totalInaccurate - targetFalsePositives;
+
+    if (targetFalseNegatives > totalActualPositives) {
+
+        targetFalseNegatives = totalActualPositives;
+        targetFalsePositives = totalInaccurate - targetFalseNegatives;
+    }
+
+    if (targetFalsePositives > totalActualNegatives) {
+
+        targetFalsePositives = totalActualNegatives;
+        targetFalseNegatives = totalInaccurate - targetFalsePositives;
+    }
+
+    let j = 0;
     for (let i = 0; i < POPULATION_SIZE; i++) {
 
-        let trueCondition = true;
+        let trueCondition;
         // Predicted condition: based on accuracy and bias
         let predicted;
-        if (i < POPULATION_SIZE * prevalence) {
+        if (i < totalActualPositives  && i < targetFalseNegatives) {
             // True positive rate (sensitivity)
             trueCondition = true; // Condition is present
-            predicted = Math.random() < accuracy;
-        } else {
-            // True negative vs false positive
-            // Bias determines the split between true negatives and false positives
-            // when the model is wrong
-            trueCondition = false;
-            const errorRate = 1 - accuracy;
-            const falsePositiveRate = errorRate * bias; // bias toward false positives
-            predicted = Math.random() < falsePositiveRate;
+            predicted = false;
+        }
+        else if (i < totalActualPositives) {
+            trueCondition = true; // Condition is present
+            predicted = true;
+        }
+        else {
+            trueCondition = false; // Condition is absent
+
+            
+            if (j < targetFalsePositives) {
+                predicted = true
+            } else{
+                predicted = false;
+            }
+            j++;
         }
 
         population.push({
@@ -77,6 +103,7 @@ function generatePopulation() {
             trueCondition,
             predicted,
         });
+        population.sort(() => Math.random() - 0.5);
     }
 
     updateVisualization();
