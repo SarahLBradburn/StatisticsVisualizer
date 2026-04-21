@@ -103,9 +103,9 @@ function generatePopulation() {
             trueCondition,
             predicted,
         });
-        population.sort(() => Math.random() - 0.5);
+       
     }
-
+    population.sort(() => Math.random() - 0.5);
     updateVisualization();
     updateStatistics();
 }
