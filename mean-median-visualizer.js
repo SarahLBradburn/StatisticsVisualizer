@@ -119,152 +119,34 @@ function generateDistribution() {
     const targetMedian = parseFloat(medianSlider.value);
     const size = parseInt(datasetSizeSlider.value, 10);
 
-    // quick guards
-    if (!size || size < 1) return;
+    const generator = d3.randomLNormal(targetMean,  10);
+    const randomGenerator = d3.randomUniform(0, 10);
+    distributionData = Array.from({ length: size }, generator);
 
-    const n = size;
-    const deltaAbs = Math.abs(targetMean - targetMedian);
-
-    // If mean and median are very close, prefer a normal-based generator
-    if (deltaAbs <= 2.0) {
-        // choose initial sigma relative to targetMean (but at least 4)
-        let sigma = Math.max(4, Math.abs(targetMean) * 0.12);
-        sigma = Math.min(sigma, Math.max(4, Math.abs(targetMean) * 0.5));
-
-        let candidate = [];
-        let iter = 0;
-        do {
-            candidate = [];
-            for (let i = 0; i < n; i++) {
-                candidate.push(targetMean + gaussianRandom(0, sigma));
+    if(targetMean < targetMedian)   {
+        distributionData = distributionData.map(element => {
+            if (element < targetMedian) {
+                return element - randomGenerator();
             }
-
-            // shift to exact mean
-            const curMean = calculateMean(candidate);
-            const shift = targetMean - curMean;
-            candidate = candidate.map(v => v + shift);
-
-            // if negatives appear, reduce sigma and retry
-            const minVal = Math.min(...candidate);
-            if (minVal >= 1) break;
-            sigma *= 0.85;
-            iter++;
-        } while (iter < 60);
-
-        distributionData = candidate.map(v => Math.max(1, v));
-
-        const actualMean = calculateMean(distributionData);
-        const actualMedian = calculateMedian(distributionData);
-        console.log(`[Page2/NORMAL] n=${n} targetMean=${targetMean} mean=${actualMean.toFixed(3)} targetMedian=${targetMedian} median=${actualMedian.toFixed(3)} sigma=${sigma.toFixed(3)}`);
-
-        updateDistributionVisualization();
-        updateDistributionStatistics();
-        return;
+        return element;
+        });
     }
-
-    // Otherwise use skewed solver (existing approach)
-    const expCandidates = [1.05, 1.15, 1.3, 1.6, 2.0];
-    const skewCandidates = [0.02, 0.05, 0.1, 0.2, 0.4, 0.7];
-    const medianIndex = (n - 1) / 2;
-    const delta = targetMean - targetMedian;
-    let best = null;
-
-    outer: for (let exp of expCandidates) {
-        for (let skew of skewCandidates) {
-            const sign = delta >= 0 ? 1 : -1;
-            const rightFactor = 1 + sign * skew;
-            const leftFactor = 1 - sign * skew;
-
-            const baseOffsets = new Array(n);
-            for (let i = 0; i < n; i++) {
-                const d = i - medianIndex;
-                const absd = Math.abs(d);
-                const base = absd > 0 ? Math.pow(absd, exp) : 0;
-                const factor = d >= 0 ? rightFactor : leftFactor;
-                baseOffsets[i] = (d >= 0 ? 1 : -1) * base * factor;
+    if(targetMean > targetMedian)   {
+        distributionData = distributionData.map(element => {
+            if (element > targetMedian) {
+                return element + randomGenerator();
             }
-
-            const bMean = calculateMean(baseOffsets);
-            const bMedian = calculateMedian(baseOffsets);
-            const denom = bMean - bMedian;
-            if (Math.abs(denom) < 1e-8) continue;
-
-            let s = (targetMean - targetMedian) / denom;
-            let t = -s * bMedian;
-
-            let candidate = baseOffsets.map(o => targetMedian + s * o + t);
-
-            let iter2 = 0;
-            while (Math.min(...candidate) < 1 && iter2++ < 60) {
-                s *= 0.88;
-                t = -s * bMedian;
-                candidate = baseOffsets.map(o => targetMedian + s * o + t);
-            }
-
-            const meanVal = calculateMean(candidate);
-            const medianVal = calculateMedian(candidate);
-            const maxErr = Math.max(Math.abs(meanVal - targetMean), Math.abs(medianVal - targetMedian));
-            if (maxErr <= 1.0) {
-                distributionData = candidate.map(v => Math.max(1, v));
-                break outer;
-            }
-
-            if (!best || maxErr < best.err) best = { distribution: candidate.slice(), err: maxErr };
-        }
+        return element;
+        });
     }
+        
 
-    if (!distributionData.length) {
-        if (best) distributionData = best.distribution.map(v => Math.max(1, v));
-        else {
-            const arr = new Array(n);
-            const mid = Math.floor(n / 2);
-            for (let i = 0; i < n; i++) {
-                if (n % 2 === 1 && i === mid) arr[i] = targetMedian;
-                else if (i < mid) arr[i] = targetMedian - (mid - i);
-                else arr[i] = targetMedian + (i - mid + (n % 2 === 0 ? 1 : 0));
-            }
-
-            const currentSum = arr.reduce((a, b) => a + b, 0);
-            let diff = targetMean * n - currentSum;
-            let idx = n - 1;
-            let pass = 0;
-            while (Math.abs(diff) > 1e-6 && pass < 1000) {
-                const add = Math.sign(diff) * Math.max(1e-3, Math.abs(diff) / (idx + 1));
-                arr[idx] += add;
-                diff -= add;
-                idx--;
-                if (idx < 0) { idx = n - 1; pass++; }
-            }
-
-            distributionData = arr.map(v => Math.max(1, v));
-        }
-    }
 
     const actualMean = calculateMean(distributionData);
     const actualMedian = calculateMedian(distributionData);
-    console.log(`[Page2/SKEW] n=${n} targetMean=${targetMean} mean=${actualMean.toFixed(3)} targetMedian=${targetMedian} median=${actualMedian.toFixed(3)}`);
 
     updateDistributionVisualization();
     updateDistributionStatistics();
-}
-
-// Box-Muller transform for Gaussian random numbers
-// Gaussian sampler: prefer d3.randomNormal when available, fallback to Box–Muller
-function gaussianRandom(mean = 0, stdev = 1) {
-    if (typeof d3 !== 'undefined' && typeof d3.randomNormal === 'function') {
-        // d3.randomNormal(mu, sigma) returns a generator function
-        try {
-            return d3.randomNormal(mean, stdev)();
-        } catch (e) {
-            // fallback to Box-Muller below
-        }
-    }
-
-    // Fallback: Box–Muller transform
-    const u = 1 - Math.random();
-    const v = Math.random();
-    const z0 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-    return z0 * stdev + mean;
 }
 
 // Calculate mean (use simple-statistics if available)
