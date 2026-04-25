@@ -99,7 +99,15 @@ const meanMedianPlugin = {
                 labelX = x - offset - textWidth;
             }
             if (labelX < leftLimit) labelX = leftLimit;
-            let labelY = top + 16;
+            
+
+            let baseY = top + 16;
+
+            // Offset mean slightly above median
+            let labelY = label === 'μ'
+                ? baseY - 4   // mean goes up
+                : baseY + 8;  // median goes down
+
             if (labelY > bottom - 6) labelY = bottom - 6;
             ctx.fillStyle = color;
             ctx.textAlign = 'left';
@@ -173,6 +181,9 @@ function generateDistribution() {
         });
     }
 
+    if (mean != median) {
+        data = enforceMeanAndMedian(data, mean, median);
+    }
     distributionData = data;
 
     updateDistributionVisualization();
@@ -184,6 +195,30 @@ function randomNormal() {
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function enforceMeanAndMedian(data, targetMean, targetMedian) {
+    if (data.length === 0) return data;
+
+    // --- STEP 1: SHIFT to fix median exactly ---
+    const currentMedian = calculateMedian(data);
+    const medianShift = targetMedian - currentMedian;
+
+    let adjusted = data.map(x => x + medianShift);
+
+    // --- STEP 2: SCALE around median to fix mean ---
+    const currentMean = calculateMean(adjusted);
+
+    // Avoid divide-by-zero
+    if (currentMean === targetMedian) return adjusted;
+
+    const scale = (targetMean - targetMedian) / (currentMean - targetMedian);
+
+    adjusted = adjusted.map(x =>
+        targetMedian + (x - targetMedian) * scale
+    );
+
+    return adjusted;
 }
 
 // Calculate mean (use simple-statistics if available)
