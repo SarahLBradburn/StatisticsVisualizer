@@ -184,8 +184,8 @@ function updateVisualization() {
         const row = Math.floor(index / dotsPerRow);
         const col = index % dotsPerRow;
 
-        // Skip dots in the top-left 5x5 area to avoid drawing over the legend
-        if (row < 5 && col < 5) {
+        // Skip dots in the top-left 5x3 area to avoid drawing over the legend
+        if (row < 5 && col < 3) {
             population.push(person); // We want to draw this later
             continue;
         }
