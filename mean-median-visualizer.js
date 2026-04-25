@@ -119,40 +119,71 @@ function generateDistribution() {
     const median = parseFloat(medianSlider.value);
     const size = parseInt(datasetSizeSlider.value, 10);
 
-    if (mean <= 0 || median <= 0) {
-        throw new Error("Mean and median must be positive for log-normal distribution.");
+    if (mean <= 0 || median <= 0) return;
+
+    const epsilon = 0.05; // "close enough" threshold
+    let data = [];
+
+    // --- 1. SYMMETRIC CASE → NORMAL ---
+    if (Math.abs(mean - median) < epsilon) {
+        const stdDev = mean * 0.2 || 1;
+
+        data = Array.from({ length: size }, () => {
+            return mean + stdDev * randomNormal();
+        });
     }
 
-    if (mean === median) {
-        console.warn("Mean equals median — distribution will not be skewed.");
+    // --- 2. RIGHT SKEW → LOG-NORMAL ---
+    else if (mean > median) {
+        const mu = Math.log(median);
+        const sigma = Math.sqrt(2 * Math.log(mean / median));
+
+        data = Array.from({ length: size }, () => {
+            const z = randomNormal();
+            return Math.exp(mu + sigma * z);
+        });
     }
 
-    // Solve parameters
-    const mu = Math.log(median);
-    const sigma = Math.sqrt(2 * Math.log(mean / median));
+    // --- 3. LEFT SKEW → GAMMA (mirrored) ---
+    else {
+        // Approximate gamma parameters
+        const variance = Math.pow(mean - median, 2) + 1;
+        const shape = Math.pow(mean, 2) / variance;
+        const scale = variance / mean;
 
-    // Box-Muller transform for normal samples
-    function randomNormal() {
-        let u = 0, v = 0;
-        while (u === 0) u = Math.random();
-        while (v === 0) v = Math.random();
-        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+        const gammaSample = () => {
+            // Marsaglia-Tsang method (simplified)
+            const d = shape - 1/3;
+            const c = 1 / Math.sqrt(9 * d);
+
+            while (true) {
+                let x = randomNormal();
+                let v = Math.pow(1 + c * x, 3);
+                if (v <= 0) continue;
+                let u = Math.random();
+                if (u < 1 - 0.0331 * Math.pow(x, 4)) return d * v * scale;
+                if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * scale;
+            }
+        };
+
+        // Mirror around median to create left skew
+        data = Array.from({ length: size }, () => {
+            const g = gammaSample();
+            return Math.max(0, 2 * median - g);
+        });
     }
 
-    // Generate log-normal samples
-    distributionData = Array.from({ length: size }, () => {
-        const z = randomNormal();
-        return Math.exp(mu + sigma * z);
-    });
-
-        
-
-
-    const actualMean = calculateMean(distributionData);
-    const actualMedian = calculateMedian(distributionData);
+    distributionData = data;
 
     updateDistributionVisualization();
     updateDistributionStatistics();
+}
+
+function randomNormal() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
 // Calculate mean (use simple-statistics if available)
