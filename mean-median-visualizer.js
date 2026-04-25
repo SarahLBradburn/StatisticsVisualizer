@@ -115,30 +115,36 @@ Chart.register(meanMedianPlugin);
 
 // Generate a dataset with specified mean and median
 function generateDistribution() {
-    const targetMean = parseFloat(meanSlider.value);
-    const targetMedian = parseFloat(medianSlider.value);
+    const mean = parseFloat(meanSlider.value);
+    const median = parseFloat(medianSlider.value);
     const size = parseInt(datasetSizeSlider.value, 10);
 
-    const generator = d3.randomLNormal(targetMean,  10);
-    const randomGenerator = d3.randomUniform(0, 10);
-    distributionData = Array.from({ length: size }, generator);
+    if (mean <= 0 || median <= 0) {
+        throw new Error("Mean and median must be positive for log-normal distribution.");
+    }
 
-    if(targetMean < targetMedian)   {
-        distributionData = distributionData.map(element => {
-            if (element < targetMedian) {
-                return element - randomGenerator();
-            }
-        return element;
-        });
+    if (mean === median) {
+        console.warn("Mean equals median — distribution will not be skewed.");
     }
-    if(targetMean > targetMedian)   {
-        distributionData = distributionData.map(element => {
-            if (element > targetMedian) {
-                return element + randomGenerator();
-            }
-        return element;
-        });
+
+    // Solve parameters
+    const mu = Math.log(median);
+    const sigma = Math.sqrt(2 * Math.log(mean / median));
+
+    // Box-Muller transform for normal samples
+    function randomNormal() {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
     }
+
+    // Generate log-normal samples
+    distributionData = Array.from({ length: size }, () => {
+        const z = randomNormal();
+        return Math.exp(mu + sigma * z);
+    });
+
         
 
 
