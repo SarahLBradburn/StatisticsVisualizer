@@ -115,8 +115,8 @@ const meanMedianPlugin = {
             ctx.restore();
         };
 
-        draw(mean, '#667eea', 'μ');
-        draw(median, '#764ba2', 'M');
+        draw(mean, '#4bbfd4', 'μ');
+        draw(median, '#4bbfd4', 'M');
     }
 };
 Chart.register(meanMedianPlugin);
