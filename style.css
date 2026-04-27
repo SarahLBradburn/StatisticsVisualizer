@@ -127,13 +127,13 @@ section h2 {
     margin-bottom: 20px;
     font-weight: 600;
     border-bottom: 3px solid #4bbfd4;
-    padding-bottom: 10px;
 }
 
 /* Controls Section */
 .controls-section {
     background: #f8f9fa;
     padding: 15px;
+    padding-top: 0px;
     border-radius: 12px;
 }
 
@@ -235,7 +235,8 @@ section h2 {
 /* Visualization Section */
 .visualization-section {
     background: #f8f9fa;
-    padding: 25px;
+    padding: 15px;
+    padding-top: 0px;
     border-radius: 12px;
 }
 
