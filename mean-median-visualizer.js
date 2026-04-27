@@ -284,7 +284,9 @@ function updateDistributionVisualization() {
         bins[binIndex]++;
     });
 
-    const binCenters = bins.map((_, i) => minValue + (i + 0.5) * binWidth);
+    const filteredBins = bins.map(count => count <= 1 ? 0 : count);
+
+    const binCenters = filteredBins.map((_, i) => minValue + (i + 0.5) * binWidth);
     const labels = binCenters.map(v => Math.round(v).toString());
 
     // Use Chart.js to render histogram and a smoothed trendline
@@ -307,7 +309,7 @@ function updateDistributionVisualization() {
     };
 
     const smoothWindow = Math.max(3, Math.floor(binCount / 6));
-    const trendData = smoothBins(bins, smoothWindow);
+    const trendData = smoothBins(filteredBins, smoothWindow);
 
     if (!distributionChart) {
         distributionChart = new Chart(ctx, {
@@ -317,7 +319,7 @@ function updateDistributionVisualization() {
                 datasets: [
                     {
                         label: 'Frequency',
-                        data: bins,
+                        data: filteredBins,
                         backgroundColor: 'rgba(102, 126, 234, 0.8)',
                         borderColor: 'rgba(102, 126, 234, 1)',
                         borderWidth: 1,
@@ -352,9 +354,9 @@ function updateDistributionVisualization() {
         distributionChart.data.labels = labels;
         // Ensure datasets exist
         if (!distributionChart.data.datasets || distributionChart.data.datasets.length === 0) {
-            distributionChart.data.datasets = [{ label: 'Frequency', data: bins }];
+            distributionChart.data.datasets = [{ label: 'Frequency', data: filteredBins }];
         }
-        distributionChart.data.datasets[0].data = bins;
+        distributionChart.data.datasets[0].data = filteredBins;
         if (distributionChart.data.datasets.length < 2) {
             distributionChart.data.datasets.push({
                 type: 'line',
