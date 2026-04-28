@@ -1,6 +1,6 @@
 // Configuration
 
-const POPULATION_SIZE = 459; // Population size = visualization size (reduced to avoid legend area)
+const POPULATION_SIZE = 469; // Population size = visualization size (reduced to avoid legend area)
 const DOT_RADIUS = 4;
 
 // DOM Elements
@@ -140,7 +140,7 @@ function getColor(trueCondition, predicted) {
         return '#f59e0b';
     } else if (!trueCondition && !predicted) {
         // True Negative - Blue
-        return '#3b82f6';
+        return '#1ec0ed';
     } else {
         // False Negative - Red
         return '#ef4444';
@@ -216,15 +216,20 @@ function updateVisualization() {
 
     const legend = [
         { label: 'True Positive', color: '#10b981' },
-        { label: 'False Positive', color: '#f59e0b' },
-        { label: 'True Negative', color: '#3b82f6' },
+        { label: 'True Negative', color: '#1ec0ed' },
         { label: 'False Negative', color: '#ef4444' },
+        { label: 'False Positive', color: '#f59e0b' },
     ];
 
     legend.forEach((item, i) => {
         const y = legendY + i * legendSpacing;
         ctx.fillStyle = item.color;
         ctx.fillRect(legendX, y - 5, 10, 10);
+        if (item.label === 'True Positive' || item.label === 'False Negative') {
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(legendX, y - 5, 10, 10);
+        }
         ctx.fillStyle = '#333';
         ctx.fillText(item.label, legendX + 15, y + 3);
     });
